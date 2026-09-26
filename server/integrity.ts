@@ -9,9 +9,9 @@ import {
   type PNode,
   type Project,
   type Severity,
-} from '../shared/model.ts';
-import { Graph, graphContext, humanizeRefs, validIds } from './graph.ts';
-import { chatJson } from './llm.ts';
+} from '../shared/model.js';
+import { Graph, graphContext, humanizeRefs, validIds } from './graph.js';
+import { chatJson } from './llm.js';
 
 let seq = 0;
 function issue(

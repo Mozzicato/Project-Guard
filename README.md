@@ -6,16 +6,28 @@ An MVP of the product described in [prd.md](prd.md): a research workspace that m
 
 ## Run it
 
-Requires Node 22.5+ (uses the built-in `node:sqlite`).
+Requires Node 20+.
 
 ```bash
 npm install
 cp .env.example .env      # add at least one AI key (GEMINI_API_KEY or GROQ_API_KEY)
-npm run seed              # optional: a demo project with deliberate flaws for the engine to find
+npm run seed              # optional: demo project with deliberate flaws; sign in as demo@projectcompiler.local / demo-password
 npm run dev               # API on :3001, app on http://localhost:5173
 ```
 
 Production: `npm run build && npm start` → http://localhost:3001.
+
+## Deploy to Vercel
+
+1. Create a Turso database: `turso db create project-compiler`, then `turso db show --url project-compiler` and `turso db tokens create project-compiler`.
+2. Import the GitHub repo in Vercel. The settings come from [vercel.json](vercel.json): Vite builds the frontend, and [api/index.ts](api/index.ts) serves the API as one function with a 60s limit, because AI calls take 10–30s.
+3. Add these environment variables in Vercel:
+   - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`
+   - `SESSION_SECRET` (generate one with `openssl rand -hex 32`)
+   - at least one AI key: `GEMINI_API_KEY` or `GROQ_API_KEY`
+4. Deploy. The schema is created automatically on the first request.
+
+Uploads are capped at 4 MB, because Vercel rejects larger request bodies.
 
 Other scripts: `npm test` (integrity engine unit tests), `npm run typecheck`.
 
@@ -34,6 +46,7 @@ Other scripts: `npm test` (integrity engine unit tests), `npm run typecheck`.
 | FR-09 Supervisor feedback → tracked actions | Supervisor Feedback |
 | FR-10 Defense simulator (text or voice), readiness | Defense Simulator |
 | NFR-01/05 Traceability & provenance labels | Everywhere (`verified` / `user` / `ai_inference` / `ai_suggestion` / `unknown`) |
+| Accounts | Local email + password sign-in; each student sees only their own projects |
 | NFR-02 User control — AI output is a suggestion until accepted | Blueprint, Research, Writing |
 | NFR-03 Versioning with diffs and restore | "vN" button on every component |
 | Report as an output of the model | Report (+ Markdown export) |
@@ -42,11 +55,13 @@ Other scripts: `npm test` (integrity engine unit tests), `npm run typecheck`.
 
 ```
 server/
-  db.ts          SQLite schema + data access (nodes, edges, versions, runs, feedback, defense)
+  app.ts         Express app with all API routes (shared by the local server and the Vercel function)
+  db.ts          libSQL data access: Turso when TURSO_DATABASE_URL is set, otherwise a local SQLite file
   graph.ts       In-memory project graph: traversal, impact analysis, LLM context serialisation
   integrity.ts   Deterministic rule checks + AI checks (B, D, G, H) + metrics
   ai.ts          AI reasoning layer — structured JSON prompts, all output validated against the graph
   llm.ts         OpenAI-compatible client with provider fallback (Gemini → Groq → Mistral → OpenRouter)
+  auth.ts        Local accounts: scrypt password hashing, HMAC-signed session cookie, login throttling
   report.ts      Compiles the report from the graph, keeping per-paragraph provenance
   extract.ts     PDF / URL / text extraction
 shared/model.ts  Domain model shared by client and server (node types, allowed relations, provenance)
@@ -68,13 +83,15 @@ Key design choices:
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`, `OPENROUTER_API_KEY` | at least one required for AI features |
 | `LLM_PROVIDERS` | `gemini,groq,mistral,openrouter` (order tried) |
 | `GEMINI_MODEL` / `GROQ_MODEL` / `MISTRAL_MODEL` / `OPENROUTER_MODEL` | `gemini-2.5-flash` / `openai/gpt-oss-120b` / `mistral-small-latest` / `meta-llama/llama-3.3-70b-instruct` |
-| `DB_PATH` | `data/projguard.db` |
+| `SESSION_SECRET` | random value stored in the DB — **set it explicitly in production** (e.g. `openssl rand -hex 32`) |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | unset → local file |
+| `DB_PATH` | `data/projguard.db` (local file, used only when Turso isn't configured) |
 | `PORT` | `3001` |
 
 Without any key, the structural checks, graph, ledger, feedback tracking and report all still work.
 
 ## Not yet built
 
-- Accounts / sign-up. The MVP is single-user and local; the data model is per-project, so users can be added on top.
+- Password reset and email verification (accounts are local email + password only).
 - Supervisor, department and university views (PRD §28).
 - Collaborative editing, and syncing with citation managers.

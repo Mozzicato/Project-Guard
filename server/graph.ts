@@ -1,4 +1,4 @@
-import { NODE_LABELS, nodeRef, type NodeType, type PEdge, type PNode, type Project } from '../shared/model.ts';
+import { NODE_LABELS, nodeRef, type NodeType, type PEdge, type PNode, type Project } from '../shared/model.js';
 
 /** In-memory view of a project graph with fast adjacency lookups. */
 export class Graph {

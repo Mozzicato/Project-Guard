@@ -55,6 +55,7 @@ function AddSource() {
       const kind = { file: 'paper', url: 'url', note: 'note', manual: 'manual', dataset: 'dataset' }[mode];
       form.set('kind', kind);
       const file = fileRef.current?.files?.[0];
+      if (file && file.size > 4 * 1024 * 1024) throw new Error('That file is over the 4 MB upload limit. Paste the abstract instead, or upload a smaller PDF.');
       if ((mode === 'file' || mode === 'dataset') && file) form.set('file', file);
       if (mode === 'file' && !file) throw new Error('Choose a file');
       if (mode === 'url' && !f.url.trim()) throw new Error('Enter a URL');

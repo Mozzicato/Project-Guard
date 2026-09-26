@@ -15,9 +15,9 @@ import {
   type Project,
   type Provenance,
   type Segment,
-} from '../shared/model.ts';
-import { Graph, graphContext, humanizeRefs, validIds } from './graph.ts';
-import { chatJson } from './llm.ts';
+} from '../shared/model.js';
+import { Graph, graphContext, humanizeRefs, validIds } from './graph.js';
+import { chatJson } from './llm.js';
 
 const PERSONA = `You are Project Compiler, a rigorous research mentor for final-year undergraduate students.
 Core promise: "We don't write your project. We make sure you can defend it."

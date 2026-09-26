@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { NodeType, PEdge, PNode, Relation } from '../shared/model.ts';
-import { Graph, impactOf } from './graph.ts';
-import { computeMetrics, mergeIssues, ruleChecks } from './integrity.ts';
+import type { NodeType, PEdge, PNode, Relation } from '../shared/model.js';
+import { Graph, impactOf } from './graph.js';
+import { computeMetrics, mergeIssues, ruleChecks } from './integrity.js';
 
 let nid = 0;
 let eid = 0;

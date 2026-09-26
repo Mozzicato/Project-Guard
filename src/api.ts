@@ -21,7 +21,14 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   }
   const res = await fetch(`/api${url}`, init);
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    /* non-JSON error page */
+  }
+  // A lapsed session anywhere sends the app back to the sign-in screen.
+  if (res.status === 401 && !url.startsWith('/auth/')) window.dispatchEvent(new Event('pc-signed-out'));
   if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
   return data as T;
 }
@@ -77,7 +84,17 @@ export interface ReportChapter {
   blocks: { kind: 'heading' | 'paragraph' | 'list' | 'missing'; text: string; refs: number[]; items?: { text: string; refs: number[] }[] }[];
 }
 
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+}
+
 export const api = {
+  me: () => req<User>('GET', '/auth/me'),
+  login: (email: string, password: string) => req<User>('POST', '/auth/login', { email, password }),
+  signup: (email: string, name: string, password: string) => req<User>('POST', '/auth/signup', { email, name, password }),
+  logout: () => req('POST', '/auth/logout'),
   health: () => req<{ ok: boolean; llm: boolean }>('GET', '/health'),
   projects: () => req<(Project & { latest: HealthMetrics | null; nodes: number })[]>('GET', '/projects'),
   createProject: (p: Partial<Project>) => req<Project>('POST', '/projects', p),

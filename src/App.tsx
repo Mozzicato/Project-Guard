@@ -15,6 +15,7 @@ import FeedbackPage from './pages/Feedback';
 import Defense from './pages/Defense';
 import Report from './pages/Report';
 import { titleCase } from './ui';
+import { AuthGate, UserMenu } from './auth';
 
 export default function App() {
   const [llm, setLlm] = useState(true);
@@ -22,10 +23,12 @@ export default function App() {
     api.health().then((h) => setLlm(h.llm)).catch(() => setLlm(false));
   }, []);
   return (
-    <Routes>
-      <Route path="/" element={<Shell><Projects /></Shell>} />
-      <Route path="/p/:pid/*" element={<ProjectRoutes llm={llm} />} />
-    </Routes>
+    <AuthGate>
+      <Routes>
+        <Route path="/" element={<Shell><Projects /></Shell>} />
+        <Route path="/p/:pid/*" element={<ProjectRoutes llm={llm} />} />
+      </Routes>
+    </AuthGate>
   );
 }
 
@@ -49,6 +52,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav className="nav">
           <NavLink to="/" end>Projects</NavLink>
         </nav>
+        <UserMenu />
       </aside>
       <main className="main">{children}</main>
     </div>
@@ -122,6 +126,7 @@ function ProjectSidebar() {
         {item('/writing', 'Writing Assistant')}
         {item('/report', 'Report')}
       </nav>
+      <UserMenu />
     </aside>
   );
 }

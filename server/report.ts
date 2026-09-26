@@ -1,7 +1,7 @@
 // §27 Principle 7 — the document is an output. The report is compiled from the project graph,
 // and every paragraph keeps a pointer to the component it came from.
-import { nodeRef, type NodeType, type PNode, type Project } from '../shared/model.ts';
-import { Graph } from './graph.ts';
+import { nodeRef, type NodeType, type PNode, type Project } from '../shared/model.js';
+import { Graph } from './graph.js';
 
 export interface ReportBlock {
   kind: 'heading' | 'paragraph' | 'list' | 'missing';

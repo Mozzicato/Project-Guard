@@ -185,6 +185,7 @@ export const PROJECT_TYPES = [
 
 export interface Project {
   id: number;
+  user_id: number | null;
   title: string;
   discipline: string;
   department: string;
