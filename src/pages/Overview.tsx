@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CHECK_NAMES, NODE_LABELS, PROJECT_STAGES, type NodeType, type ProjectStage } from '../../shared/model';
 import { api, type Summary } from '../api';
 import { Refs, useProject } from '../project';
@@ -9,6 +9,14 @@ export default function Overview() {
   const { project, graph, setProject } = useProject();
   const [s, setS] = useState<Summary | null>(null);
   const { run } = useAction();
+  const nav = useNavigate();
+  const deleteProject = () => {
+    if (!window.confirm(`Delete "${project.title}" and everything in it? This cannot be undone.`)) return;
+    run('delete', async () => {
+      await api.deleteProject(project.id);
+      nav('/');
+    });
+  };
   useEffect(() => {
     api.summary(project.id).then(setS);
   }, [project.id, graph]);
@@ -32,6 +40,9 @@ export default function Overview() {
           <select value={project.stage} onChange={(e) => run('stage', async () => setProject(await api.updateProject(project.id, { stage: e.target.value as ProjectStage })))}>
             {PROJECT_STAGES.map((st) => <option key={st} value={st}>{titleCase(st)}</option>)}
           </select>
+          <button className="btn sm ghost danger" style={{ alignSelf: 'flex-end', marginTop: 4 }} onClick={deleteProject}>
+            Delete project
+          </button>
         </label>
       </div>
 
