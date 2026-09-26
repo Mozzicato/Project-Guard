@@ -12,6 +12,7 @@ import {
   type OpportunityBrief,
 } from '../shared/model.js';
 import * as db from './db.js';
+import { DatabaseConfigError } from './db.js';
 import { Graph, impactOf } from './graph.js';
 import { aiChecks, computeMetrics, defenseReadiness, mergeIssues, ruleChecks, sortIssues } from './integrity.js';
 import * as ai from './ai.js';
@@ -573,8 +574,16 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status =
-    err instanceof HttpError ? err.status : err instanceof LLMError ? 502 : err?.code === 'LIMIT_FILE_SIZE' ? 413 : 500;
-  if (status === 500) console.error(err);
+    err instanceof HttpError
+      ? err.status
+      : err instanceof LLMError
+        ? 502
+        : err instanceof DatabaseConfigError
+          ? 503
+          : err?.code === 'LIMIT_FILE_SIZE'
+            ? 413
+            : 500;
+  if (status >= 500) console.error(err);
   const message = status === 413 ? 'File is too large — the limit is 4 MB. Paste the abstract instead, or upload a smaller PDF.' : err?.message ?? 'Server error';
   res.status(status).json({ error: message });
 });

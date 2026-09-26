@@ -1,5 +1,5 @@
 // Data access over libSQL: Turso in production (TURSO_DATABASE_URL), a local SQLite file otherwise.
-import { createClient, type InArgs, type InStatement, type ResultSet } from '@libsql/client';
+import { createClient, type Client, type InArgs, type InStatement, type ResultSet } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
@@ -14,15 +14,25 @@ import type {
   Provenance,
 } from '../shared/model.js';
 
+export class DatabaseConfigError extends Error {}
+
 function databaseUrl(): string {
-  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL;
+  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL.trim();
+  // Serverless filesystems are read-only and ephemeral: a local file would crash or silently lose data.
+  if (process.env.VERCEL) {
+    throw new DatabaseConfigError('Database not configured: set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the Vercel project settings, then redeploy.');
+  }
   const file = process.env.DB_PATH ?? path.join('data', 'projguard.db');
   if (file === ':memory:') return ':memory:';
   fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   return `file:${file.replace(/\\/g, '/')}`;
 }
 
-export const client = createClient({ url: databaseUrl(), authToken: process.env.TURSO_AUTH_TOKEN });
+// Created on first use so a configuration problem surfaces as a clear API error, not a crash at import.
+let _client: Client | null = null;
+function db(): Client {
+  return (_client ??= createClient({ url: databaseUrl(), authToken: process.env.TURSO_AUTH_TOKEN?.trim() }));
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -123,13 +133,13 @@ CREATE TABLE IF NOT EXISTS defense_questions (
 `;
 
 async function migrate() {
-  await client.executeMultiple(SCHEMA);
+  await db().executeMultiple(SCHEMA);
   // Projects created before accounts existed have no owner.
-  const cols = await client.execute('PRAGMA table_info(projects)');
+  const cols = await db().execute('PRAGMA table_info(projects)');
   if (!cols.rows.some((c: any) => c.name === 'user_id')) {
-    await client.execute('ALTER TABLE projects ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+    await db().execute('ALTER TABLE projects ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
   }
-  await client.execute('CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id)');
+  await db().execute('CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id)');
 }
 
 // Schema setup runs once per process (per cold start on serverless) before the first query.
@@ -140,19 +150,19 @@ const plain = (rs: ResultSet): any[] => rs.rows.map((r) => Object.fromEntries(rs
 
 async function all(sql: string, args: InArgs = []): Promise<any[]> {
   await init();
-  return plain(await client.execute({ sql, args }));
+  return plain(await db().execute({ sql, args }));
 }
 async function get(sql: string, args: InArgs = []): Promise<any | undefined> {
   return (await all(sql, args))[0];
 }
 async function run(sql: string, args: InArgs = []): Promise<void> {
   await init();
-  await client.execute({ sql, args });
+  await db().execute({ sql, args });
 }
 /** Several statements atomically (one transaction). */
 async function tx(stmts: InStatement[]): Promise<void> {
   await init();
-  await client.batch(stmts, 'write');
+  await db().batch(stmts, 'write');
 }
 
 const json = <T>(s: unknown, fallback: T): T => {
