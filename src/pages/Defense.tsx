@@ -3,6 +3,7 @@ import { DEFENSE_CATEGORIES, type DefenseCategory, type DefenseQuestion } from '
 import { api, type Readiness } from '../api';
 import { Refs, useProject } from '../project';
 import { Bar, ScoreRing, Spinner, scoreColor, titleCase, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 const CAT_HINT: Record<DefenseCategory, string> = {
   fundamentals: 'What problem are you solving?',
@@ -48,7 +49,7 @@ export default function Defense() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Defense Simulator</h1>
+          <h1 className="page-title"><SectionBadge id="defense" />Defense Simulator</h1>
           <p>Questions generated from your project graph and its known weak spots. Answer by typing or speaking; each answer is checked for relevance, consistency with your project, unsupported claims and contradictions.</p>
         </div>
         <div className="row">

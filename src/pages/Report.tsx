@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, type ReportChapter } from '../api';
 import { useProject } from '../project';
 import { Md, Spinner } from '../ui';
+import { SectionBadge } from '../sections';
 
 export default function Report() {
   const { project, graph, openNode } = useProject();
@@ -17,7 +18,7 @@ export default function Report() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Report</h1>
+          <h1 className="page-title"><SectionBadge id="report" />Report</h1>
           <p>
             The document is an output — this draft is compiled from your project model, so it is always consistent with it. Click any paragraph to open the component it came from. Use the <Link to={`/p/${project.id}/writing`}>Writing Assistant</Link> to turn it into polished prose.
           </p>

@@ -4,6 +4,7 @@ import { BRIEF_FIELDS, PROJECT_TYPES, type BriefKey, type OpportunityBrief } fro
 import { api } from '../api';
 import { useProject } from '../project';
 import { Bar, ProvBadge, Spinner, scoreColor, timeAgo, titleCase, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 export default function IdeaLab() {
   const { project, setProject, refresh, llm, graph } = useProject();
@@ -59,7 +60,7 @@ export default function IdeaLab() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Idea Lab</h1>
+          <h1 className="page-title"><SectionBadge id="idea" />Idea Lab</h1>
           <p>Describe your idea roughly. The Lab will not write your project — it interrogates the idea so you find weaknesses now, not at your defense.</p>
         </div>
       </div>

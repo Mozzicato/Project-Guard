@@ -3,6 +3,7 @@ import type { Feedback, FeedbackStatus } from '../../shared/model';
 import { api } from '../api';
 import { Refs, useProject } from '../project';
 import { Spinner, timeAgo, useAction, useToast } from '../ui';
+import { SectionBadge } from '../sections';
 
 const STATUSES: [FeedbackStatus, string, string][] = [
   ['open', 'Open', 'crit'],
@@ -44,7 +45,7 @@ export default function FeedbackPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Supervisor feedback</h1>
+          <h1 className="page-title"><SectionBadge id="feedback" />Supervisor feedback</h1>
           <p>Record feedback as you get it. Each item becomes a tracked checklist tied to the parts of your project it affects. You remain the decision-maker — you can reject feedback that doesn't apply.</p>
         </div>
       </div>

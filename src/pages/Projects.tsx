@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PROJECT_STAGES, PROJECT_TYPES, type HealthMetrics, type Project } from '../../shared/model';
 import { api } from '../api';
 import { Spinner, scoreColor, timeAgo, titleCase, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 export default function Projects() {
   const [projects, setProjects] = useState<(Project & { latest: HealthMetrics | null; nodes: number })[] | null>(null);
@@ -15,7 +16,7 @@ export default function Projects() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Your projects</h1>
+          <h1 className="page-title"><SectionBadge id="projects" />Your projects</h1>
           <p>We don't write your project. We make sure you can defend it.</p>
         </div>
         {!creating && projects && projects.length > 0 && (

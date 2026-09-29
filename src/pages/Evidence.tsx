@@ -3,6 +3,7 @@ import { NODE_PREFIX, type PNode } from '../../shared/model';
 import { api } from '../api';
 import { NodeCard, Ref, useProject } from '../project';
 import { Modal, Spinner, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 export const EVIDENCE_KINDS = ['academic paper', 'dataset', 'experiment', 'survey', 'interview', 'measurement', 'screenshot', 'observation'];
 
@@ -19,7 +20,7 @@ export default function Evidence() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Evidence Ledger</h1>
+          <h1 className="page-title"><SectionBadge id="evidence" />Evidence Ledger</h1>
           <p>Every claim is either a <b>student assertion</b> or an <b>evidence-backed claim</b>. A beautifully written unsupported claim is still a weak claim.</p>
         </div>
         <div className="row">

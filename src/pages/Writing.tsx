@@ -3,6 +3,7 @@ import { NODE_LABELS, nodeRef, type AssistantReply, type Segment, type Suggested
 import { api } from '../api';
 import { Refs, useProject } from '../project';
 import { Md, Spinner, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 const MODES: [string, string, string][] = [
   ['ask', 'Ask', 'Where did this come from? What does my method need?'],
@@ -65,7 +66,7 @@ export default function Writing() {
     <div className="page" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <div className="page-head">
         <div>
-          <h1>Writing Assistant</h1>
+          <h1 className="page-title"><SectionBadge id="writing" />Writing Assistant</h1>
           <p>Works from your structured project, not generic text. Every statement is labelled by where it came from, and anything that changes your project is a suggestion you must accept.</p>
         </div>
         <div className="stack-sm" style={{ alignItems: 'flex-end' }}>

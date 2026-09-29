@@ -4,6 +4,7 @@ import { NODE_LABELS, type NodeType, type PNode } from '../../shared/model';
 import { api } from '../api';
 import { NodeCard, Ref, useProject } from '../project';
 import { Spinner, useAction } from '../ui';
+import { SectionBadge, TYPE_COLOR } from '../sections';
 
 const SECTIONS: { title: string; types: NodeType[]; hint: string }[] = [
   { title: 'Foundation', types: ['problem', 'research_gap', 'aim'], hint: 'What problem, what gap in existing work, and what you aim to do about it.' },
@@ -28,7 +29,7 @@ export default function Blueprint() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Project Blueprint</h1>
+          <h1 className="page-title"><SectionBadge id="blueprint" />Project Blueprint</h1>
           <p>Your project's foundation — not isolated text fields, but linked components. Every objective should trace through a question, a method, evidence, a result and a conclusion.</p>
         </div>
       </div>
@@ -73,6 +74,7 @@ export default function Blueprint() {
                     <div key={t}>
                       <div className="section-head">
                         <h3>
+                          <span className="type-dot" style={{ background: TYPE_COLOR[t] }} />
                           {NODE_LABELS[t]}
                           {nodes.length > 1 && <span className="badge outline">{nodes.length}</span>}
                         </h3>

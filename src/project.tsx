@@ -15,6 +15,7 @@ import {
 } from '../shared/model';
 import { api, type GraphData, type Impact, type NodeVersion } from './api';
 import { Modal, ProvBadge, Spinner, timeAgo, useAction, useToast } from './ui';
+import { TYPE_COLOR } from './sections';
 
 // ---------------------------------------------------------------------------
 // Project context
@@ -94,7 +95,7 @@ export function Ref({ id }: { id: number }) {
   const n = byId.get(id);
   if (!n) return <span className="ref" title="Component no longer exists">#{id}</span>;
   return (
-    <button className="ref" title={`${NODE_LABELS[n.type]}: ${n.title}`} onClick={() => openNode(id)}>
+    <button className="ref" title={`${NODE_LABELS[n.type]}: ${n.title}`} onClick={() => openNode(id)} style={{ ['--type' as any]: TYPE_COLOR[n.type] }}>
       {nodeRef(n)}
     </button>
   );
@@ -132,9 +133,9 @@ export function NodeCard({ node, children, hideLinks }: { node: PNode; children?
   const suggested = node.status === 'suggested';
 
   return (
-    <div className={`node-card${suggested ? ' suggested' : ''}`}>
+    <div className={`node-card${suggested ? ' suggested' : ''}`} style={{ ['--type' as any]: TYPE_COLOR[node.type] }}>
       <div className="head">
-        <span className="ref" style={{ cursor: 'default' }}>{nodeRef(node)}</span>
+        <span className="ref type-ref" style={{ cursor: 'default' }} title={NODE_LABELS[node.type]}>{nodeRef(node)}</span>
         <span className="title">{node.title || <span className="faint">(untitled)</span>}</span>
         <ProvBadge p={node.provenance} />
         {suggested ? (

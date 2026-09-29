@@ -4,6 +4,7 @@ import { api } from '../api';
 import { Refs, useProject } from '../project';
 import { ScoreRing, SevBadge, Spinner, timeAgo, useAction } from '../ui';
 import { Sparkline } from './Overview';
+import { SectionBadge } from '../sections';
 
 export default function Integrity() {
   const { project, llm, graph } = useProject();
@@ -39,7 +40,7 @@ export default function Integrity() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Project Check</h1>
+          <h1 className="page-title"><SectionBadge id="check" />Project Check</h1>
           <p>The Integrity Engine runs deterministic structural checks on your project graph, then AI reasoning for what rules cannot see: methodology fit, gap support, scope drift and contradictions.</p>
         </div>
         <div className="stack-sm" style={{ alignItems: 'flex-end' }}>

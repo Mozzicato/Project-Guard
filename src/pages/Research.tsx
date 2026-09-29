@@ -3,6 +3,7 @@ import { type PNode } from '../../shared/model';
 import { api } from '../api';
 import { NodeCard, Ref, SourceDetails, useProject } from '../project';
 import { Spinner, useAction, useToast } from '../ui';
+import { SectionBadge } from '../sections';
 
 type Mode = 'file' | 'url' | 'note' | 'manual' | 'dataset';
 
@@ -17,7 +18,7 @@ export default function Research() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Research workspace</h1>
+          <h1 className="page-title"><SectionBadge id="research" />Research workspace</h1>
           <p>Add papers, links, notes and data. Each source is summarised — claims, findings, limitations, relevance, and whether it supports or challenges your research gap. Always check AI summaries against the original.</p>
         </div>
       </div>

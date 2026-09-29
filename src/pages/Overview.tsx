@@ -4,6 +4,7 @@ import { CHECK_NAMES, NODE_LABELS, PROJECT_STAGES, type NodeType, type ProjectSt
 import { api, type Summary } from '../api';
 import { Refs, useProject } from '../project';
 import { Bar, ScoreRing, SevBadge, Spinner, scoreColor, timeAgo, titleCase, useAction } from '../ui';
+import { SectionBadge } from '../sections';
 
 export default function Overview() {
   const { project, graph, setProject } = useProject();
@@ -32,7 +33,7 @@ export default function Overview() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>{project.title}</h1>
+          <h1 className="page-title"><SectionBadge id="overview" />{project.title}</h1>
           <p>{[project.discipline, project.department, project.institution].filter(Boolean).join(' · ') || 'Add your discipline and institution in the Idea Lab.'}</p>
         </div>
         <label className="field" style={{ width: 200 }}>

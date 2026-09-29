@@ -4,6 +4,8 @@ import { NODE_LABELS, NODE_PREFIX, relationLabel, type NodeType, type PNode } fr
 import { api, type Summary } from '../api';
 import { NodeCard, useProject } from '../project';
 import { titleCase } from '../ui';
+import { TYPE_COLOR } from '../sections';
+import { SectionBadge } from '../sections';
 
 const COLUMN: Record<NodeType, number> = {
   claim: 0,
@@ -31,24 +33,6 @@ function columnOf(n: PNode, edges: { from_id: number; to_id: number }[], byId: M
   return producedByMethod ? COLUMN.evidence : 1;
 }
 
-export const TYPE_COLOR: Record<NodeType, string> = {
-  problem: '#d23c3c',
-  aim: '#e0663a',
-  research_gap: '#c97a09',
-  objective: '#2f5bea',
-  research_question: '#4f7cff',
-  scope: '#7d8797',
-  limitation: '#7d8797',
-  method: '#8b5cf6',
-  evaluation: '#a67ff7',
-  contribution: '#0e9f8e',
-  source: '#1f8a5b',
-  claim: '#b8458f',
-  evidence: '#2a9d6a',
-  experiment: '#6b5bd6',
-  result: '#0a7ea4',
-  conclusion: '#14532d',
-};
 
 type GData = { node: PNode; bad: boolean; hl: boolean; dim: boolean; unbacked: boolean };
 
@@ -176,7 +160,7 @@ export default function GraphView() {
     <div className="page wide" style={{ paddingBottom: 16 }}>
       <div className="page-head" style={{ marginBottom: 12 }}>
         <div>
-          <h1>Knowledge Graph</h1>
+          <h1 className="page-title"><SectionBadge id="graph" />Knowledge Graph</h1>
           <p>The project as a connected research system. Red outline = flagged by the integrity engine. Click a component to trace everything that depends on it.</p>
         </div>
         <label className="row small muted" style={{ gap: 6 }}>
