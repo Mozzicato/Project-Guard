@@ -14,7 +14,10 @@ export type SectionId =
   | 'feedback'
   | 'defense'
   | 'writing'
-  | 'report';
+  | 'report'
+  | 'requirements'
+  | 'design'
+  | 'testing';
 
 export const SECTIONS: Record<SectionId, { label: string; path: string; color: string; icon: IconName }> = {
   projects: { label: 'Projects', path: '', color: '#2f5bea', icon: 'folder' },
@@ -29,6 +32,9 @@ export const SECTIONS: Record<SectionId, { label: string; path: string; color: s
   defense: { label: 'Defense Simulator', path: '/defense', color: '#db2777', icon: 'mic' },
   writing: { label: 'Writing Assistant', path: '/writing', color: '#9333ea', icon: 'pen' },
   report: { label: 'Report', path: '/report', color: '#475569', icon: 'doc' },
+  requirements: { label: 'Requirements', path: '/requirements', color: '#0891b2', icon: 'target' },
+  design: { label: 'System Design', path: '/design', color: '#ea580c', icon: 'cpu' },
+  testing: { label: 'Build & Test', path: '/testing', color: '#16a34a', icon: 'gauge' },
 };
 
 export function sectionFromPath(pathname: string): SectionId {
@@ -54,6 +60,10 @@ export const TYPE_COLOR: Record<NodeType, string> = {
   experiment: '#6b5bd6',
   result: '#0a7ea4',
   conclusion: '#14532d',
+  requirement: '#0891b2',
+  design: '#ea580c',
+  component: '#b45309',
+  test: '#16a34a',
 };
 
 // Minimal stroke icons (24×24, lucide-style geometry).
@@ -75,6 +85,14 @@ const PATHS = {
   eyeOff: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3 3.8M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.5 4.5-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
   logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11',
+  target: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 12m-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0',
+  cpu: 'M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4',
+  gauge: 'M12 14l4-4M4.9 19a9 9 0 1 1 14.2 0M12 14m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0',
+  arrow: 'M5 12h14M13 6l6 6-6 6',
+  circle: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0',
+  flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3',
+  wrench: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z',
 } as const;
 export type IconName = keyof typeof PATHS;
 

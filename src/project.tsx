@@ -12,6 +12,9 @@ import {
   type PNode,
   type Project,
   type Provenance,
+  DESIGN_KINDS,
+  TEST_STATUSES,
+  VERIFICATION_METHODS,
 } from '../shared/model';
 import { api, type GraphData, type Impact, type NodeVersion } from './api';
 import { Modal, ProvBadge, Spinner, timeAgo, useAction, useToast } from './ui';
@@ -215,6 +218,8 @@ export function NodeEditor({ init, link, onClose }: { init: Partial<PNode> & { t
   const [title, setTitle] = useState(init.title ?? '');
   const [content, setContent] = useState(init.content ?? '');
   const [prov, setProv] = useState<Provenance>(init.provenance ?? 'user');
+  const [data, setData] = useState<Record<string, any>>(init.data ?? {});
+  const fields = DATA_FIELDS[init.type] ?? [];
   const isNew = !init.id;
 
   const save = () =>
@@ -226,13 +231,13 @@ export function NodeEditor({ init, link, onClose }: { init: Partial<PNode> & { t
           title,
           content,
           provenance: prov,
-          data: init.data,
+          data,
           ...(link?.from ? { link_from: link.from, link_relation: link.relation } : {}),
           ...(link?.to ? { link_to: link.to, link_relation: link.relation } : {}),
         });
       } else {
         const provChangedByStudent = prov !== init.provenance;
-        await api.updateNode(init.id!, { title, content, ...(provChangedByStudent ? { provenance: prov } : {}), take_ownership: !provChangedByStudent });
+        await api.updateNode(init.id!, { title, content, ...(fields.length ? { data } : {}), ...(provChangedByStudent ? { provenance: prov } : {}), take_ownership: !provChangedByStudent });
       }
       await refresh();
       toast(isNew ? `${NODE_LABELS[init.type]} added` : 'Saved — previous version kept in history');
@@ -259,8 +264,29 @@ export function NodeEditor({ init, link, onClose }: { init: Partial<PNode> & { t
         </label>
         <label className="field">
           Statement / details
-          <textarea rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder={placeholderContent(init.type)} />
+          <textarea rows={fields.length ? 4 : 6} value={content} onChange={(e) => setContent(e.target.value)} placeholder={placeholderContent(init.type)} />
         </label>
+        {fields.length > 0 && (
+          <div className="grid-2" style={{ gap: 10 }}>
+            {fields.map((f) => (
+              <label key={f.key} className="field">
+                {f.label}
+                {f.options ? (
+                  <select value={data[f.key] ?? f.options[0]} onChange={(e) => setData({ ...data, [f.key]: e.target.value })}>
+                    {f.options.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={f.number ? 'number' : 'text'}
+                    value={data[f.key] ?? ''}
+                    placeholder={f.placeholder}
+                    onChange={(e) => setData({ ...data, [f.key]: f.number && e.target.value !== '' ? Number(e.target.value) : e.target.value })}
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+        )}
         <label className="field">
           Provenance
           <select value={prov} onChange={(e) => setProv(e.target.value as Provenance)}>
@@ -278,6 +304,28 @@ export function NodeEditor({ init, link, onClose }: { init: Partial<PNode> & { t
   );
 }
 
+/** Structured fields for the hardware-track component types. */
+const DATA_FIELDS: Partial<Record<NodeType, { key: string; label: string; placeholder?: string; number?: boolean; options?: readonly string[] }[]>> = {
+  requirement: [
+    { key: 'target', label: 'Target value', placeholder: 'e.g. ≤ 2' },
+    { key: 'unit', label: 'Unit', placeholder: 'e.g. s, V, %, h' },
+    { key: 'verification', label: 'Verify by', options: VERIFICATION_METHODS },
+  ],
+  component: [
+    { key: 'part', label: 'Part number / model', placeholder: 'e.g. ESP32-WROOM-32' },
+    { key: 'qty', label: 'Quantity', number: true },
+    { key: 'unit_cost', label: 'Unit cost', placeholder: 'e.g. 4500' },
+    { key: 'supplier', label: 'Supplier', placeholder: 'optional' },
+  ],
+  test: [
+    { key: 'expected', label: 'Expected (pass criterion)', placeholder: 'e.g. ≤ 2 s in 10/10 trials' },
+    { key: 'measured', label: 'Measured', placeholder: 'fill in after testing' },
+    { key: 'status', label: 'Result', options: TEST_STATUSES },
+    { key: 'equipment', label: 'Equipment', placeholder: 'e.g. multimeter' },
+  ],
+  design: [{ key: 'kind', label: 'Kind', options: DESIGN_KINDS }],
+};
+
 function placeholderTitle(t: NodeType) {
   return (
     {
@@ -286,6 +334,10 @@ function placeholderTitle(t: NodeType) {
       claim: 'e.g. Existing models perform poorly on low-resource Nigerian languages',
       method: 'e.g. Fine-tune a multilingual transformer',
       result: 'e.g. F1 = 0.81 on held-out test set',
+      requirement: 'e.g. Response time',
+      component: 'e.g. Microcontroller',
+      test: 'e.g. Response time test',
+      design: 'e.g. System block diagram',
     } as Partial<Record<NodeType, string>>
   )[t] ?? 'Short label';
 }

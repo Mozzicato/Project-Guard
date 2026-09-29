@@ -19,6 +19,11 @@ export const NODE_TYPES = [
   'experiment',
   'result',
   'conclusion',
+  // Hardware / engineering-build track
+  'requirement',
+  'design',
+  'component',
+  'test',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
@@ -39,6 +44,10 @@ export const NODE_LABELS: Record<NodeType, string> = {
   experiment: 'Experiment',
   result: 'Result',
   conclusion: 'Conclusion',
+  requirement: 'Requirement',
+  design: 'Design Artifact',
+  component: 'Component',
+  test: 'Test',
 };
 
 /** Short prefix used when showing / referencing nodes, e.g. OBJ-3. */
@@ -59,6 +68,10 @@ export const NODE_PREFIX: Record<NodeType, string> = {
   experiment: 'EXP',
   result: 'RES',
   conclusion: 'CNC',
+  requirement: 'REQ',
+  design: 'DSN',
+  component: 'CMP',
+  test: 'TST',
 };
 
 /** NFR-05: every piece of content is labelled with where it came from. */
@@ -119,7 +132,11 @@ export type Relation =
   | 'challenges_gap'
   | 'bounds'
   | 'constrains'
-  | 'demonstrates';
+  | 'demonstrates'
+  | 'specified_by'
+  | 'realized_by'
+  | 'verified_by'
+  | 'uses';
 
 /** The relationships the system understands. Direction always follows the research chain. */
 export const ALLOWED_RELATIONS: { from: NodeType; to: NodeType; relation: Relation; label: string }[] = [
@@ -146,7 +163,25 @@ export const ALLOWED_RELATIONS: { from: NodeType; to: NodeType; relation: Relati
   { from: 'source', to: 'research_gap', relation: 'challenges_gap', label: 'challenges gap' },
   { from: 'scope', to: 'objective', relation: 'bounds', label: 'bounds' },
   { from: 'limitation', to: 'method', relation: 'constrains', label: 'constrains' },
+  // Hardware track: objective → requirement → (design, component) and → test → result.
+  { from: 'objective', to: 'requirement', relation: 'specified_by', label: 'is specified by' },
+  { from: 'requirement', to: 'design', relation: 'realized_by', label: 'is realised by' },
+  { from: 'requirement', to: 'component', relation: 'realized_by', label: 'is realised by' },
+  { from: 'design', to: 'component', relation: 'uses', label: 'uses' },
+  { from: 'requirement', to: 'test', relation: 'verified_by', label: 'is verified by' },
+  { from: 'test', to: 'result', relation: 'produces', label: 'produces' },
+  { from: 'limitation', to: 'requirement', relation: 'constrains', label: 'constrains' },
+  { from: 'source', to: 'design', relation: 'supports', label: 'informs' },
 ];
+
+/** The two journeys a project can follow. */
+export const TRACKS = ['research', 'hardware'] as const;
+export type Track = (typeof TRACKS)[number];
+
+/** How a requirement will be proven (standard verification methods: test, analysis, inspection, demonstration). */
+export const VERIFICATION_METHODS = ['test', 'analysis', 'inspection', 'demonstration'] as const;
+export const DESIGN_KINDS = ['block_diagram', 'schematic', 'calculation', 'simulation', 'pcb_layout', 'firmware', 'mechanical'] as const;
+export const TEST_STATUSES = ['planned', 'pass', 'fail'] as const;
 
 export function isAllowedRelation(from: NodeType, to: NodeType, relation: string): boolean {
   return ALLOWED_RELATIONS.some((r) => r.from === from && r.to === to && r.relation === relation);
@@ -172,6 +207,9 @@ export const PROJECT_STAGES = [
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
+/** Placeholder title for projects created without one; the Idea Lab replaces it with a suggestion. */
+export const DEFAULT_PROJECT_TITLE = 'Untitled project';
+
 export const PROJECT_TYPES = [
   'software_system',
   'experimental',
@@ -191,6 +229,7 @@ export interface Project {
   department: string;
   institution: string;
   project_type: string;
+  track: Track;
   stage: ProjectStage;
   idea: string;
   brief: OpportunityBrief | null;
@@ -224,6 +263,8 @@ export interface OpportunityBrief {
   problem_clarity: { score: number; comment: string };
   questions: { id: string; question: string; why: string; answer: string }[];
   analyzed_at: string;
+  /** A concise academic working title proposed from the idea. */
+  suggested_title?: string;
 }
 
 export type Severity = 'critical' | 'warning' | 'info' | 'passed';
@@ -240,7 +281,7 @@ export interface Issue {
   origin: 'rule' | 'ai';
 }
 
-export type CheckId = 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'FB';
+export type CheckId = 'S' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'R' | 'V' | 'FB';
 
 export const CHECK_NAMES: Record<CheckId, string> = {
   S: 'Structural completeness',
@@ -252,6 +293,8 @@ export const CHECK_NAMES: Record<CheckId, string> = {
   F: 'Conclusion coverage',
   G: 'Scope drift',
   H: 'Internal contradiction',
+  R: 'Requirement traceability',
+  V: 'Verification & testing',
   FB: 'Supervisor feedback',
 };
 
@@ -267,6 +310,10 @@ export interface HealthMetrics {
   defense_readiness: number | null;
   evidence_backed_claims: number;
   claims_total: number;
+  /** Hardware track only. */
+  requirements_verified?: number;
+  requirements_total?: number;
+  bom_total?: number;
 }
 
 export interface IntegrityRun {

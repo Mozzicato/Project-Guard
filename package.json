@@ -10,8 +10,9 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "start": "node --import tsx --env-file=.env server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test server/integrity.test.ts server/auth.test.ts",
-    "seed": "node --import tsx server/seed.ts"
+    "test": "node --import tsx --test server/integrity.test.ts server/auth.test.ts server/hardware.test.ts",
+    "seed": "node --import tsx server/seed.ts",
+    "seed:hardware": "node --import tsx server/seed-hardware-run.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

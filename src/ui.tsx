@@ -108,7 +108,8 @@ export function scoreColor(v: number | null | undefined) {
   return v >= 80 ? 'var(--ok)' : v >= 55 ? 'var(--warn)' : 'var(--crit)';
 }
 
-export function ScoreRing({ value, label }: { value: number | null; label: string }) {
+/** `critical` > 0 caps the ring at amber: a high score with a critical issue must not look healthy. */
+export function ScoreRing({ value, label, critical = 0 }: { value: number | null; label: string; critical?: number }) {
   const r = 56;
   const c = 2 * Math.PI * r;
   const v = value ?? 0;
@@ -121,7 +122,7 @@ export function ScoreRing({ value, label }: { value: number | null; label: strin
           cy="66"
           r={r}
           fill="none"
-          stroke={scoreColor(value)}
+          stroke={critical > 0 && (value ?? 0) >= 80 ? 'var(--warn)' : scoreColor(value)}
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={`${(v / 100) * c} ${c}`}

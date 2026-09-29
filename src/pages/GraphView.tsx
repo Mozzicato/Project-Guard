@@ -24,6 +24,10 @@ const COLUMN: Record<NodeType, number> = {
   result: 9,
   conclusion: 10,
   contribution: 11,
+  requirement: 5,
+  design: 6,
+  component: 7,
+  test: 8,
 };
 
 /** Literature evidence (backing a claim, derived from a source) sits between claims and sources. */

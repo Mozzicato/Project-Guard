@@ -5,9 +5,12 @@ import { api, type Summary } from '../api';
 import { Refs, useProject } from '../project';
 import { Bar, ScoreRing, SevBadge, Spinner, scoreColor, timeAgo, titleCase, useAction } from '../ui';
 import { SectionBadge } from '../sections';
+import { HomeHero, PathMap } from '../journey';
+import { useAuth } from '../auth';
 
 export default function Overview() {
   const { project, graph, setProject } = useProject();
+  const { user } = useAuth();
   const [s, setS] = useState<Summary | null>(null);
   const { run } = useAction();
   const nav = useNavigate();
@@ -31,37 +34,68 @@ export default function Overview() {
 
   return (
     <div className="page">
-      <div className="page-head">
+      <HomeHero name={(user.name || '').split(' ')[0]} />
+
+      <div className="home-grid">
         <div>
-          <h1 className="page-title"><SectionBadge id="overview" />{project.title}</h1>
-          <p>{[project.discipline, project.department, project.institution].filter(Boolean).join(' · ') || 'Add your discipline and institution in the Idea Lab.'}</p>
+          <div className="section-head" style={{ marginBottom: 4 }}>
+            <h2>Your path</h2>
+            <span className="small faint">Tap any step to open it</span>
+          </div>
+          <PathMap />
         </div>
-        <label className="field" style={{ width: 200 }}>
-          Stage
-          <select value={project.stage} onChange={(e) => run('stage', async () => setProject(await api.updateProject(project.id, { stage: e.target.value as ProjectStage })))}>
-            {PROJECT_STAGES.map((st) => <option key={st} value={st}>{titleCase(st)}</option>)}
-          </select>
-          <button className="btn sm ghost danger" style={{ alignSelf: 'flex-end', marginTop: 4 }} onClick={deleteProject}>
-            Delete project
-          </button>
-        </label>
+        <aside className="stack">
+          <div className="card card-pad stack-sm project-meta">
+            <div className="tiny faint bold" style={{ textTransform: 'uppercase', letterSpacing: '.06em' }}>Project</div>
+            <div className="bold" style={{ lineHeight: 1.35 }}>{project.title}</div>
+            <div className="small muted">{[project.track === 'hardware' ? 'Hardware / engineering build' : 'Research project', project.discipline, project.institution].filter(Boolean).join(' · ')}</div>
+            <label className="field" style={{ marginTop: 6 }}>
+              Where are you now?
+              <select value={project.stage} onChange={(e) => run('stage', async () => setProject(await api.updateProject(project.id, { stage: e.target.value as ProjectStage })))}>
+                {PROJECT_STAGES.map((st) => <option key={st} value={st}>{titleCase(st)}</option>)}
+              </select>
+            </label>
+            <button className="btn sm ghost danger" style={{ alignSelf: 'flex-start' }} onClick={deleteProject}>Delete project</button>
+          </div>
+          {!empty && (
+            <Link to={`/p/${project.id}/check`} className="card card-pad health-mini" style={{ ['--c' as any]: scoreColor(m.critical ? Math.min(m.score, 70) : m.score) }}>
+              <div className="tiny faint bold" style={{ textTransform: 'uppercase', letterSpacing: '.06em' }}>Project health</div>
+              <div className="row" style={{ alignItems: 'baseline', gap: 8 }}>
+                <span className="hm-score">{m.score}</span>
+                <span className="small muted">/ 100</span>
+              </div>
+              <div className="small">
+                {m.critical ? <span style={{ color: 'var(--crit)' }} className="bold">{m.critical} critical</span> : <span style={{ color: 'var(--ok)' }} className="bold">No critical issues</span>} · {m.warnings} warning(s)
+              </div>
+              <span className="small bold" style={{ color: 'var(--sec)' }}>See the full check →</span>
+            </Link>
+          )}
+          {m.bom_total != null && m.bom_total > 0 && (
+            <div className="card card-pad">
+              <div className="tiny faint bold" style={{ textTransform: 'uppercase', letterSpacing: '.06em' }}>Build</div>
+              <div className="small" style={{ marginTop: 4 }}>
+                <b>{m.requirements_verified}/{m.requirements_total}</b> requirements verified · estimated cost <b>{m.bom_total.toLocaleString()}</b>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
 
       {empty ? (
-        <div className="card card-pad stack" style={{ alignItems: 'flex-start' }}>
-          <h2>Start with your idea</h2>
-          <p className="muted">
-            Project Compiler maps your project as a connected research system — problem → gap → objectives → questions → methods → evidence → results → conclusions — and keeps checking that the chain holds.
-          </p>
-          <div className="row">
-            <Link className="btn primary" to={`${base}/idea`}>Open the Idea Lab</Link>
-            <Link className="btn" to={`${base}/blueprint`}>Build the blueprint manually</Link>
+        <div className="card card-pad stack" style={{ marginTop: 18 }}>
+          <h3>How Project Compiler works</h3>
+          <div className="grid-3">
+            <HowItem n="1" title="Structure" text={project.track === 'hardware' ? 'Turn your idea into objectives and measurable requirements, then a justified design.' : 'Turn your idea into linked parts: problem, research gap, objectives, questions, methods.'} />
+            <HowItem n="2" title={project.track === 'hardware' ? 'Build & prove' : 'Support'} text={project.track === 'hardware' ? 'Build it and prove every requirement with a measured test result.' : 'Attach literature and evidence so every claim and your research gap are backed.'} />
+            <HowItem n="3" title="Stress-test" text="Get checked like an examiner would, fix what breaks, and rehearse your defense." />
           </div>
+          <p className="small faint">We never write your project for you. AI suggestions are labelled and only added when you accept them.</p>
         </div>
       ) : (
         <div className="stack">
+          <h2 style={{ marginTop: 18 }}>Health details</h2>
           <div className="card card-pad row" style={{ gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-            <ScoreRing value={m.score} label="Project health" />
+            <ScoreRing value={m.score} label="Project health" critical={m.critical} />
             <div className="grow" style={{ minWidth: 260 }}>
               <div className="grid-4">
                 <Stat k="Critical" v={m.critical} color={m.critical ? 'var(--crit)' : undefined} />
@@ -156,6 +190,18 @@ export default function Overview() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function HowItem({ n, title, text }: { n: string; title: string; text: string }) {
+  return (
+    <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+      <span className="how-num">{n}</span>
+      <div>
+        <div className="bold">{title}</div>
+        <div className="small muted">{text}</div>
+      </div>
     </div>
   );
 }

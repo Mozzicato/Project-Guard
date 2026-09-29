@@ -4,7 +4,7 @@ import { NODE_LABELS, type NodeType, type PNode } from '../../shared/model';
 import { api } from '../api';
 import { NodeCard, Ref, useProject } from '../project';
 import { Spinner, useAction } from '../ui';
-import { SectionBadge, TYPE_COLOR } from '../sections';
+import { Icon, SectionBadge, TYPE_COLOR } from '../sections';
 
 const SECTIONS: { title: string; types: NodeType[]; hint: string }[] = [
   { title: 'Foundation', types: ['problem', 'research_gap', 'aim'], hint: 'What problem, what gap in existing work, and what you aim to do about it.' },
@@ -24,6 +24,14 @@ export default function Blueprint() {
   const suggested = graph.nodes.filter((n) => n.status === 'suggested');
   const suggestedEdges = graph.edges.filter((e) => e.status === 'suggested').length;
   const base = `/p/${project.id}`;
+  const { llm } = useProject();
+  const hasBlueprint = graph.nodes.some((n) => n.status === 'active' && ['problem', 'research_gap', 'objective'].includes(n.type));
+  const draft = () =>
+    run('draft', async () => {
+      const r = await api.suggestBlueprint(project.id);
+      await refresh();
+      return r;
+    }, 'Draft ready — review the dashed suggestions below');
 
   return (
     <div className="page">
@@ -32,7 +40,25 @@ export default function Blueprint() {
           <h1 className="page-title"><SectionBadge id="blueprint" />Project Blueprint</h1>
           <p>Your project's foundation — not isolated text fields, but linked components. Every objective should trace through a question, a method, evidence, a result and a conclusion.</p>
         </div>
+        {llm && (project.idea.trim() || project.brief) && (
+          <button className={`btn ${hasBlueprint ? '' : 'primary lg'}`} onClick={draft} disabled={!!busy}>
+            {busy === 'draft' ? <><Spinner /> Drafting (~15s)…</> : <><Icon name="sparkle" size={16} /> {hasBlueprint ? 'Suggest more' : 'Draft a blueprint for me'}</>}
+          </button>
+        )}
       </div>
+
+      {!hasBlueprint && !suggested.length && busy !== 'draft' && (
+        <div className="empty-cta">
+          <h3>Your blueprint is empty</h3>
+          {project.idea.trim() || project.brief ? (
+            <p>Let us draft one from your idea — problem, research gap, objectives, questions and methods — as suggestions you review one by one. Or add each part yourself with <b>+ Add</b> below.</p>
+          ) : (
+            <p>
+              Start in <Link to={`${base}/idea`}>step 1 — Shape your idea</Link> so we can draft a blueprint from it, or add each part yourself with <b>+ Add</b> below.
+            </p>
+          )}
+        </div>
+      )}
 
       {(suggested.length > 0 || suggestedEdges > 0) && (
         <div className="warn-box row between" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
@@ -56,11 +82,6 @@ export default function Blueprint() {
         <ChainMatrix />
       ) : (
         <>
-          {graph.nodes.length === 0 && (
-            <div className="note-box" style={{ marginBottom: 16 }}>
-              Tip: the <Link to={`${base}/idea`}>Idea Lab</Link> can draft a blueprint skeleton for you to review, or add components yourself below.
-            </div>
-          )}
           {SECTIONS.map((s) => (
             <div key={s.title} className="section-block">
               <div className="section-head" style={{ marginBottom: 4 }}>

@@ -49,6 +49,7 @@ Return JSON:
     ${keys}
   },
   "problem_clarity": {"score": 0-100, "comment": "how well-defined the problem is and what is vague"},
+  "suggested_title": "a concise academic working title for this project (8-14 words, no colon-heavy jargon)",
   "questions": [{"question": "a pointed question the student must answer to sharpen the project", "why": "what it unblocks"}]
 }
 Rules: keep each field value concise (1-4 sentences, concrete, specific to this idea and context). When you mention existing approaches, name real, well-known ones only if you are confident; otherwise say what kind of approaches the student should search for and mark basis "ai_suggestion". Mark "unknown" where the student must find out. Ask 4-7 questions, prioritising the weakest parts of the idea; do not re-ask what the student already answered.`;
@@ -80,18 +81,21 @@ Rules: keep each field value concise (1-4 sentences, concrete, specific to this 
     },
     questions,
     analyzed_at: new Date().toISOString(),
+    suggested_title: clampText(res?.suggested_title, 160).trim() || undefined,
   };
 }
 
 // ---------------- Blueprint suggestions (FR-03) ----------------
 
 export interface BlueprintSuggestion {
-  nodes: { key: string; type: NodeType; title: string; content: string; provenance: Provenance }[];
+  nodes: { key: string; type: NodeType; title: string; content: string; provenance: Provenance; data?: Record<string, any> }[];
   edges: { from: string; to: string; relation: string }[];
 }
 
 export async function suggestBlueprint(project: Project, g: Graph): Promise<BlueprintSuggestion> {
-  const rel = ALLOWED_RELATIONS.filter((r) => !['source', 'claim', 'evidence', 'experiment', 'result', 'conclusion'].includes(r.from) && !['source', 'claim', 'evidence', 'experiment', 'result', 'conclusion'].includes(r.to))
+  const hardware = project.track === 'hardware';
+  const excluded = ['source', 'claim', 'evidence', 'experiment', 'result', 'conclusion', 'component', 'test', 'design', ...(hardware ? ['research_question', 'method', 'evaluation'] : ['requirement'])];
+  const rel = ALLOWED_RELATIONS.filter((r) => !excluded.includes(r.from) && !excluded.includes(r.to))
     .map((r) => `${r.from} -${r.relation}-> ${r.to}`)
     .join('\n');
   const brief = project.brief
@@ -108,7 +112,7 @@ OPPORTUNITY BRIEF:
 ${brief}
 ${answers ? `\nSTUDENT ANSWERS:\n${answers}` : ''}
 
-Produce blueprint components of these types only: problem, aim, research_gap, objective (3-5, SMART, each achievable), research_question (one or more per objective), scope, limitation, method (appropriate for the discipline — each method must genuinely answer its objective/question), evaluation, contribution.
+${hardware ? HARDWARE_BLUEPRINT : RESEARCH_BLUEPRINT}
 Skip any type that already exists above unless it is clearly inadequate. Use short keys like "p1", "o1", "q1", "m1" for new components; refer to existing components by their numeric id as a string, e.g. "12".
 
 Allowed relationships (from -relation-> to):
@@ -117,7 +121,7 @@ ${rel}
 Return JSON:
 {"nodes": [{"key": "o1", "type": "objective", "title": "short label (max 12 words)", "content": "1-3 sentence statement", "provenance": "ai_suggestion" | "ai_inference"}],
  "edges": [{"from": "p1", "to": "g1", "relation": "motivates"}]}
-Use provenance "ai_inference" only when the component restates what the student already said; otherwise "ai_suggestion". Link every objective to at least one research question and one method.`;
+Use provenance "ai_inference" only when the component restates what the student already said; otherwise "ai_suggestion". ${hardware ? 'Link every objective to at least one requirement.' : 'Link every objective to at least one research question and one method.'}`;
   const res = await chatJson<any>(PERSONA, user, 8000);
   const nodes = (Array.isArray(res?.nodes) ? res.nodes : [])
     .filter((n: any) => NODE_TYPES.includes(n?.type) && n?.key && n?.title)
@@ -128,9 +132,96 @@ Use provenance "ai_inference" only when the component restates what the student 
       title: clampText(n.title, 200),
       content: clampText(n.content, 2000),
       provenance: (n.provenance === 'ai_inference' ? 'ai_inference' : 'ai_suggestion') as Provenance,
+      data: n.type === 'requirement' ? requirementData(n) : undefined,
     }));
   const edges = (Array.isArray(res?.edges) ? res.edges : []).map((e: any) => ({ from: String(e?.from), to: String(e?.to), relation: String(e?.relation) }));
   return { nodes, edges };
+}
+
+const RESEARCH_BLUEPRINT = `Produce blueprint components of these types only: problem, aim, research_gap, objective (3-5, SMART, each achievable), research_question (one or more per objective), scope, limitation, method (appropriate for the discipline; each method must genuinely answer its objective/question), evaluation, contribution.`;
+
+const HARDWARE_BLUEPRINT = `This is a HARDWARE / engineering-build final-year project (e.g. an embedded device, power system, control system, instrument).
+Produce blueprint components of these types only: problem, aim, research_gap (the shortcoming of existing solutions/products), objective (3-5, each achievable with a build), requirement (2-4 per objective: engineering specifications that are MEASURABLE, each with a target value and unit, e.g. "Detect soil moisture within ±5 %", "Operate ≥ 8 h on battery", "Respond within 2 s"), scope, limitation, contribution.
+For each requirement put these extra fields on the node: "target" (value, e.g. "≤ 2"), "unit" (e.g. "s"), "verification" (one of: test, analysis, inspection, demonstration).`;
+
+function requirementData(n: any) {
+  const v = String(n?.verification ?? '').toLowerCase();
+  return {
+    target: clampText(n?.target, 60),
+    unit: clampText(n?.unit, 30),
+    verification: ['test', 'analysis', 'inspection', 'demonstration'].includes(v) ? v : 'test',
+  };
+}
+
+// ---------------- Hardware helpers ----------------
+
+export interface TestSuggestion {
+  requirement_id: number;
+  title: string;
+  procedure: string;
+  expected: string;
+  equipment: string;
+}
+
+/** Draft a test for each requirement that has none: procedure, instrument and pass criterion. */
+export async function suggestTests(project: Project, g: Graph): Promise<TestSuggestion[]> {
+  const untested = g.ofType('requirement').filter((r) => g.children(r.id, 'test').length === 0);
+  if (!untested.length) return [];
+  const user = `Write a verification test for each requirement below, for a final-year hardware project the student will build and test themselves.
+
+${graphContext(project, g)}
+
+REQUIREMENTS NEEDING A TEST: ${untested.map((r) => `#${r.id}`).join(', ')}
+
+Return JSON: {"tests": [{"requirement_id": id, "title": "short test name", "procedure": "3-5 numbered steps a student can follow with lab equipment", "expected": "the pass criterion using the requirement's target, e.g. '≤ 2 s in 10 of 10 trials'", "equipment": "instruments needed, e.g. multimeter, stopwatch, oscilloscope"}]}
+One test per requirement. Use realistic, affordable equipment. Never invent measured results.`;
+  const r = await chatJson<any>(PERSONA, user);
+  const ids = new Set(untested.map((x) => x.id));
+  return (Array.isArray(r?.tests) ? r.tests : [])
+    .map((t: any) => ({
+      requirement_id: validIds(g, [t?.requirement_id])[0],
+      title: clampText(t?.title, 160),
+      procedure: clampText(t?.procedure, 1500),
+      expected: clampText(t?.expected, 200),
+      equipment: clampText(t?.equipment, 300),
+    }))
+    .filter((t: TestSuggestion) => t.requirement_id && ids.has(t.requirement_id) && t.title);
+}
+
+export interface DesignSuggestion {
+  designs: { key: string; kind: string; title: string; content: string; requirement_ids: number[] }[];
+  components: { title: string; part: string; qty: number; unit_cost: string; rationale: string; design_key: string | null; requirement_ids: number[] }[];
+}
+
+/** Propose a block diagram (subsystems) and a first component list for the student to verify. */
+export async function suggestDesign(project: Project, g: Graph): Promise<DesignSuggestion> {
+  const user = `Propose a first system design for this hardware final-year project, for the student to review and verify.
+
+${graphContext(project, g)}
+
+Return JSON:
+{"designs": [{"key": "d1", "kind": "block_diagram" | "calculation" | "schematic" | "firmware", "title": "", "content": "for a block diagram: the subsystems and signal/power flow between them, as short lines like 'Soil sensor → ADC input of MCU'; for a calculation: what must be calculated and the formula", "requirement_ids": [ids it satisfies]}],
+ "components": [{"title": "role, e.g. Microcontroller", "part": "a common, widely available part, e.g. ESP32-WROOM-32", "qty": 1, "unit_cost": "approximate unit price as a number in the student's local currency if known from context, else in USD with 'USD' suffix", "rationale": "why this part meets the linked requirement (range, rating, accuracy, power)", "design_key": "d1", "requirement_ids": [ids]}]}
+Only propose what is MISSING: do not repeat design artifacts or components that already exist above (same role or part). If a block diagram already exists, skip it. If the existing design has a problem (e.g. an under-rated part), propose the corrected part with a rationale that names the problem.
+Give at most one block diagram, 1-2 key calculations (e.g. power budget, sensor range), and up to 8 components. Prefer parts students can buy locally. Prices are estimates the student must confirm.`;
+  const r = await chatJson<any>(PERSONA, user, 8000);
+  const designs = (Array.isArray(r?.designs) ? r.designs : []).slice(0, 5).map((d: any) => ({
+    key: String(d?.key ?? ''),
+    kind: String(d?.kind ?? 'block_diagram'),
+    title: clampText(d?.title, 160),
+    content: clampText(d?.content, 3000),
+    requirement_ids: validIds(g, d?.requirement_ids).filter((id) => g.byId.get(id)?.type === 'requirement'),
+  }));
+  const components = (Array.isArray(r?.components) ? r.components : []).slice(0, 15).map((c: any) => ({
+    title: clampText(c?.title, 160),
+    part: clampText(c?.part, 120),
+    qty: Math.max(1, Math.round(Number(c?.qty) || 1)),
+    unit_cost: clampText(c?.unit_cost, 40),
+    rationale: clampText(c?.rationale, 800),
+    design_key: c?.design_key ? String(c.design_key) : null,
+    requirement_ids: validIds(g, c?.requirement_ids).filter((id) => g.byId.get(id)?.type === 'requirement'),
+  }));
+  return { designs: designs.filter((d: any) => d.title), components: components.filter((c: any) => c.title) };
 }
 
 // ---------------- Research workspace (FR-04) ----------------
@@ -217,7 +308,7 @@ ${graphContext(project, g)}
 KNOWN WEAK SPOTS FROM THE INTEGRITY CHECK:
 ${weakSpots.length ? weakSpots.map((w) => `- ${w}`).join('\n') : '(none recorded)'}
 
-Categories: ${DEFENSE_CATEGORIES.join(', ')} (challenge = why prefer your approach over existing ones).
+Categories: ${DEFENSE_CATEGORIES.join(', ')} (challenge = why prefer your approach over existing ones).${project.track === 'hardware' ? ' This is a hardware build: include questions on component choice, power budget, safety, calibration/accuracy, test results against the specifications, and cost.' : ''}
 Return JSON: {"questions": [{"category": "...", "question": "specific question referencing the project's actual content", "rationale": "what weakness or component this probes", "risk": "high" | "medium" | "low", "target_ids": [ids]}]}
 Generate ${count} questions covering every category; make high-risk questions target the weak spots. Avoid generic questions that could apply to any project.`;
   const r = await chatJson<any>(PERSONA, user);

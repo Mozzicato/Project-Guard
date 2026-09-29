@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BRIEF_FIELDS, PROJECT_TYPES, type BriefKey, type OpportunityBrief } from '../../shared/model';
 import { api } from '../api';
 import { useProject } from '../project';
@@ -19,6 +19,10 @@ export default function IdeaLab() {
     setBrief(project.brief);
     setDirty(false);
   }, [project.brief]);
+  // The analysis may replace a placeholder title with a suggested one.
+  useEffect(() => {
+    setMeta((m) => ({ ...m, title: project.title }));
+  }, [project.title]);
 
   const analyze = () =>
     run('analyze', async () => {
@@ -26,6 +30,17 @@ export default function IdeaLab() {
       const p = await api.analyzeIdea(project.id, { idea, brief });
       setProject(p);
     });
+
+  // Arriving from "Create & analyse my idea": start the analysis immediately (once, even under StrictMode).
+  const location = useLocation();
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStarted.current || !(location.state as any)?.autoAnalyze || project.brief || !llm || !project.idea.trim()) return;
+    autoStarted.current = true;
+    nav(location.pathname, { replace: true, state: null });
+    analyze();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveBrief = () =>
     run('save', async () => {
@@ -81,6 +96,7 @@ export default function IdeaLab() {
               <label className="field">
                 Project type
                 <select value={meta.project_type} onChange={(e) => setMeta({ ...meta, project_type: e.target.value })}>
+                  <option value="">Not sure yet</option>
                   {PROJECT_TYPES.map((t) => <option key={t} value={t}>{titleCase(t)}</option>)}
                 </select>
               </label>
@@ -105,9 +121,23 @@ export default function IdeaLab() {
         </div>
 
         <div className="stack">
-          {!brief ? (
+          {!brief && busy === 'analyze' ? (
+            <div className="card card-pad stack analyzing">
+              <div className="row" style={{ gap: 10 }}>
+                <Spinner />
+                <b>Reading your idea…</b>
+              </div>
+              <p className="muted small">This takes about 15 seconds. We're looking at:</p>
+              <ul className="small muted" style={{ margin: 0, paddingLeft: 18 }}>
+                <li>how clear the problem is, and who it affects</li>
+                <li>what already exists, and where the research gap might be</li>
+                <li>whether it's feasible — data, resources, scope</li>
+                <li>the questions your supervisor is likely to ask</li>
+              </ul>
+            </div>
+          ) : !brief ? (
             <div className="empty">
-              Your Project Opportunity Brief will appear here — problem, target, existing approaches, potential gap, contribution, resources, risks, scope and evaluation, each labelled with where it came from.
+              Describe your idea on the left and click <b>Analyse my idea</b>. You'll get a brief — problem, target, existing approaches, gap, risks, scope, evaluation — plus the questions you need to answer. Every point is labelled with where it came from.
             </div>
           ) : (
             <>

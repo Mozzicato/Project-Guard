@@ -14,8 +14,12 @@ import Writing from './pages/Writing';
 import FeedbackPage from './pages/Feedback';
 import Defense from './pages/Defense';
 import Report from './pages/Report';
+import Requirements from './pages/Requirements';
+import Design from './pages/Design';
+import Testing from './pages/Testing';
 import { titleCase } from './ui';
 import { AuthGate, UserMenu } from './auth';
+import { Celebration, ContinueBar, StepHero, useJourney } from './journey';
 import { Icon, SECTIONS, sectionFromPath, type SectionId } from './sections';
 
 export default function App() {
@@ -75,64 +79,105 @@ function ProjectRoutes({ llm }: { llm: boolean }) {
               No AI provider is configured — structural checks work, but AI analysis is unavailable. Add GEMINI_API_KEY or GROQ_API_KEY to .env.
             </div>
           )}
-          <Routes>
-            <Route index element={<Overview />} />
-            <Route path="idea" element={<IdeaLab />} />
-            <Route path="blueprint" element={<Blueprint />} />
-            <Route path="research" element={<Research />} />
-            <Route path="evidence" element={<Evidence />} />
-            <Route path="graph" element={<GraphView />} />
-            <Route path="check" element={<Integrity />} />
-            <Route path="writing" element={<Writing />} />
-            <Route path="feedback" element={<FeedbackPage />} />
-            <Route path="defense" element={<Defense />} />
-            <Route path="report" element={<Report />} />
-          </Routes>
+          <JourneyChrome>
+            <Routes>
+              <Route index element={<Overview />} />
+              <Route path="idea" element={<IdeaLab />} />
+              <Route path="blueprint" element={<Blueprint />} />
+              <Route path="research" element={<Research />} />
+              <Route path="evidence" element={<Evidence />} />
+              <Route path="graph" element={<GraphView />} />
+              <Route path="check" element={<Integrity />} />
+              <Route path="writing" element={<Writing />} />
+              <Route path="feedback" element={<FeedbackPage />} />
+              <Route path="defense" element={<Defense />} />
+              <Route path="report" element={<Report />} />
+              <Route path="requirements" element={<Requirements />} />
+              <Route path="design" element={<Design />} />
+              <Route path="testing" element={<Testing />} />
+            </Routes>
+          </JourneyChrome>
         </SectionMain>
       </div>
     </ProjectProvider>
   );
 }
 
+/** On a journey step's page: the step banner with its tasks above the page, and the Continue bar below. */
+function JourneyChrome({ children }: { children: React.ReactNode }) {
+  const id = sectionFromPath(useLocation().pathname);
+  const { steps } = useJourney();
+  const { project } = useProject();
+  const isStep = steps.some((s) => s.id === id);
+  return (
+    <div className={isStep ? 'is-step' : undefined}>
+      {isStep && (
+        <div className={`hero-wrap${id === 'graph' ? ' wide' : ''}`}>
+          <StepHero section={id} />
+        </div>
+      )}
+      {children}
+      {isStep && <ContinueBar section={id} />}
+      {/* Keyed by project so switching projects never counts as "completing" steps. */}
+      <Celebration key={project.id} />
+    </div>
+  );
+}
+
 function ProjectSidebar() {
   const { project, graph } = useProject();
+  const { steps, current, doneCount, total } = useJourney();
   const base = `/p/${project.id}`;
-  const count = (...types: string[]) => graph.nodes.filter((n) => n.status === 'active' && types.includes(n.type)).length;
   const suggested = graph.nodes.filter((n) => n.status === 'suggested').length;
   const unsupported = Object.values(graph.claimStatus).filter((b) => !b).length;
-  const item = (id: SectionId, extra?: React.ReactNode) => {
+  const badge: Partial<Record<SectionId, React.ReactNode>> = {
+    blueprint: suggested ? <span className="pill warn" title={`${suggested} AI suggestion(s) to review`}>{suggested} new</span> : null,
+    evidence: unsupported ? <span className="pill crit" title={`${unsupported} claim(s) with no evidence`}>{unsupported}</span> : null,
+    feedback: graph.meta?.feedback_open ? <span className="pill warn" title="Open supervisor feedback">{graph.meta.feedback_open}</span> : null,
+  };
+  const tool = (id: SectionId) => {
     const s = SECTIONS[id];
     return (
       <NavLink to={`${base}${s.path}`} end={s.path === ''} style={{ ['--sec' as any]: s.color }}>
         <span className="nav-ico"><Icon name={s.icon} size={15} /></span>
-        {s.label}
-        {extra}
+        {id === 'overview' ? 'Home' : s.label}
+        {badge[id]}
       </NavLink>
     );
   };
-  const c = (n: number) => (n ? <span className="count">{n}</span> : null);
   return (
     <aside className="sidebar">
       <Brand />
       <div className="side-project">
         <div className="t">{project.title}</div>
-        <div className="s">{[project.discipline, titleCase(project.stage)].filter(Boolean).join(' · ')}</div>
+        <div className="s">{[project.track === 'hardware' ? 'Hardware build' : 'Research', project.discipline].filter(Boolean).join(' · ')}</div>
+        <div className="side-progress" title={`${doneCount} of ${total} steps done`}>
+          <div style={{ width: `${(doneCount / total) * 100}%` }} />
+        </div>
       </div>
       <nav className="nav">
-        {item('overview')}
-        <div className="nav-group">Build</div>
-        {item('idea')}
-        {item('blueprint', suggested ? <span className="pill warn" title={`${suggested} AI suggestion(s) to review`}>{suggested} new</span> : c(count('objective', 'research_question', 'method')))}
-        {item('research', c(count('source')))}
-        {item('evidence', unsupported ? <span className="pill crit" title={`${unsupported} claim(s) with no evidence`}>{unsupported}</span> : c(count('claim', 'evidence')))}
-        {item('graph')}
-        <div className="nav-group">Validate</div>
-        {item('check')}
-        {item('feedback')}
-        {item('defense')}
-        <div className="nav-group">Write</div>
-        {item('writing')}
-        {item('report')}
+        {tool('overview')}
+        <div className="nav-group">Your path · {doneCount}/{total}</div>
+        {steps.map((st) => (
+          <NavLink
+            key={st.n}
+            to={`${base}${SECTIONS[st.id].path}`}
+            className={`path-item${st.done ? ' done' : ''}${current?.n === st.n ? ' current' : ''}`}
+            style={{ ['--sec' as any]: SECTIONS[st.id].color }}
+            title={st.status}
+          >
+            <span className="path-num">{st.done ? <Icon name="check" size={13} /> : st.n}</span>
+            {st.title}
+            {badge[st.id] ?? (current?.n === st.n ? <span className="next-dot" title="Your next step" /> : null)}
+          </NavLink>
+        ))}
+        <div className="nav-group">Tools</div>
+        {project.track === 'hardware' && tool('blueprint')}
+        {project.track === 'hardware' && tool('evidence')}
+        {tool('graph')}
+        {tool('feedback')}
+        {tool('writing')}
+        {tool('report')}
       </nav>
       <UserMenu />
     </aside>

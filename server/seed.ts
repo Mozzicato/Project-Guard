@@ -3,6 +3,7 @@
 import type { NodeType, Provenance, Relation } from '../shared/model.js';
 import * as db from './db.js';
 import { hashPassword } from './auth.js';
+import { seedHardwareProject } from './seed-hardware.js';
 
 const DEMO_EMAIL = 'demo@projectcompiler.local';
 const DEMO_PASSWORD = 'demo-password';
@@ -95,4 +96,6 @@ await db.createFeedback({
 });
 
 console.log(`Seeded demo project #${p.id}: "${p.title}"`);
+const hw = await seedHardwareProject(demo.id);
+console.log(`Seeded hardware demo project #${hw.id}: "${hw.title}"`);
 console.log(`Sign in as ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);

@@ -61,11 +61,11 @@ export class Graph {
 
   /** The research chain downstream of an objective (does not wander into sources/claims). */
   chainDown(id: number): PNode[] {
-    return this.reach(id, 'down', ['objective', 'research_question', 'method', 'experiment', 'evidence', 'result', 'conclusion']);
+    return this.reach(id, 'down', ['objective', 'research_question', 'method', 'experiment', 'evidence', 'result', 'conclusion', 'requirement', 'design', 'test']);
   }
 
   chainUp(id: number): PNode[] {
-    return this.reach(id, 'up', ['conclusion', 'result', 'evidence', 'experiment', 'method', 'research_question', 'objective']);
+    return this.reach(id, 'up', ['conclusion', 'result', 'evidence', 'experiment', 'method', 'research_question', 'objective', 'test', 'requirement', 'design']);
   }
 
   /** FR-05: a claim is evidence-backed only if it is linked to evidence or a source. */
@@ -82,10 +82,26 @@ export class Graph {
     return {
       research_question: has('research_question'),
       method: has('method'),
-      evidence_or_result: has('result') || has('evidence') || has('experiment'),
+      evidence_or_result: has('result') || has('evidence') || has('experiment') || has('test'),
       result: has('result'),
       conclusion: has('conclusion'),
+      requirement: has('requirement'),
+      design: has('design') || down.some((n) => n.type === 'requirement' && this.children(n.id, 'component').length > 0),
+      test: has('test'),
     };
+  }
+
+  /** Hardware track: how far a requirement is traced — realised in the design, and verified by a test. */
+  requirementTrace(reqId: number) {
+    const tests = this.children(reqId, 'test');
+    const realized = this.children(reqId, 'design', 'component');
+    const passed = tests.filter((t) => t.data?.status === 'pass');
+    const failed = tests.filter((t) => t.data?.status === 'fail');
+    return { realized, tests, passed, failed, verified: passed.length > 0 && failed.length === 0 };
+  }
+
+  bomTotal(): number {
+    return this.ofType('component').reduce((sum, c) => sum + (Number(c.data?.qty) || 0) * (Number(c.data?.unit_cost) || 0), 0);
   }
 }
 
@@ -126,7 +142,7 @@ export function graphContext(project: Project, g: Graph, opts: { contentChars?: 
   const limit = opts.contentChars ?? 600;
   const lines: string[] = [];
   lines.push(`PROJECT: ${project.title}`);
-  lines.push(`Discipline: ${project.discipline || 'n/a'} | Department: ${project.department || 'n/a'} | Type: ${project.project_type || 'n/a'} | Stage: ${project.stage}`);
+  lines.push(`Discipline: ${project.discipline || 'n/a'} | Department: ${project.department || 'n/a'} | Type: ${project.project_type || 'n/a'} | Track: ${project.track === 'hardware' ? 'HARDWARE / engineering build' : 'research'} | Stage: ${project.stage}`);
   if (project.idea) lines.push(`Original idea: ${clip(project.idea, 800)}`);
   lines.push('', 'COMPONENTS (reference them as #id):');
   for (const n of g.nodes) {
@@ -140,6 +156,11 @@ export function graphContext(project: Project, g: Graph, opts: { contentChars?: 
       if (Array.isArray(d.limitations) && d.limitations.length) extra.push(`limitations: ${d.limitations.slice(0, 3).join('; ')}`);
     }
     if (n.type === 'claim') extra.push(g.claimBacking(n.id).backed ? 'status: evidence-backed' : 'status: UNSUPPORTED ASSERTION');
+    const d = n.data ?? {};
+    if (n.type === 'requirement') extra.push(`target: ${d.target ? `${d.target} ${d.unit ?? ''}`.trim() : 'NOT MEASURABLE (no target)'}`, `verify by: ${d.verification ?? 'unspecified'}`);
+    if (n.type === 'component') extra.push(`part: ${d.part || 'n/a'}`, `qty: ${d.qty ?? '?'}`, `unit cost: ${d.unit_cost ?? '?'}`);
+    if (n.type === 'design') extra.push(`kind: ${d.kind ?? 'n/a'}`);
+    if (n.type === 'test') extra.push(`expected: ${d.expected || 'n/a'}`, `measured: ${d.measured || 'not yet measured'}`, `status: ${d.status ?? 'planned'}`);
     lines.push(
       `#${n.id} [${NODE_LABELS[n.type]}] (${n.provenance}) ${n.title}${n.content ? ` — ${clip(n.content, limit)}` : ''}${extra.length ? ` {${extra.join(' | ')}}` : ''}`,
     );

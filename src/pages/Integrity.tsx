@@ -62,7 +62,7 @@ export default function Integrity() {
           {sel === 0 && stale && <div className="note-box">You have changed the project since this check. Re-run it to validate your changes.</div>}
           {cur.ai_error && <div className="warn-box">AI reasoning failed for this run, so only structural checks are shown: {cur.ai_error}</div>}
           <div className="card card-pad row" style={{ gap: 28, flexWrap: 'wrap' }}>
-            <ScoreRing value={cur.metrics.score} label="Project health" />
+            <ScoreRing value={cur.metrics.score} label="Project health" critical={cur.metrics.critical} />
             <div className="grow" style={{ minWidth: 280 }}>
               <div className="grid-4">
                 <Metric k="Critical issues" v={cur.metrics.critical} c={cur.metrics.critical ? 'var(--crit)' : undefined} />

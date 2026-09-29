@@ -140,6 +140,9 @@ async function migrate() {
     await db().execute('ALTER TABLE projects ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
   }
   await db().execute('CREATE INDEX IF NOT EXISTS projects_user ON projects(user_id)');
+  if (!cols.rows.some((c: any) => c.name === 'track')) {
+    await db().execute("ALTER TABLE projects ADD COLUMN track TEXT NOT NULL DEFAULT 'research'");
+  }
 }
 
 // Schema setup runs once per process (per cold start on serverless) before the first query.
@@ -236,20 +239,21 @@ export async function getProject(id: number): Promise<Project | undefined> {
 export async function createProject(userId: number, p: Partial<Project>): Promise<Project> {
   return toProject(
     await get(
-      `INSERT INTO projects (user_id, title, discipline, department, institution, project_type, stage, idea)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      [userId, p.title ?? 'Untitled project', p.discipline ?? '', p.department ?? '', p.institution ?? '', p.project_type ?? '', p.stage ?? 'ideation', p.idea ?? ''],
+      `INSERT INTO projects (user_id, title, discipline, department, institution, project_type, track, stage, idea)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+      [userId, p.title ?? 'Untitled project', p.discipline ?? '', p.department ?? '', p.institution ?? '', p.project_type ?? '', p.track === 'hardware' ? 'hardware' : 'research', p.stage ?? 'ideation', p.idea ?? ''],
     ),
   );
 }
 
-const PROJECT_FIELDS = ['title', 'discipline', 'department', 'institution', 'project_type', 'stage', 'idea', 'brief'] as const;
+const PROJECT_FIELDS = ['title', 'discipline', 'department', 'institution', 'project_type', 'track', 'stage', 'idea', 'brief'] as const;
 
 export async function updateProject(id: number, patch: Partial<Project>): Promise<Project | undefined> {
   const sets: string[] = [];
   const vals: any[] = [];
   for (const f of PROJECT_FIELDS) {
     if (patch[f] === undefined) continue;
+    if (f === 'track' && patch.track !== 'research' && patch.track !== 'hardware') continue;
     sets.push(`${f} = ?`);
     vals.push(f === 'brief' ? JSON.stringify(patch.brief) : patch[f]);
   }

@@ -3,6 +3,7 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  DEFAULT_PROJECT_TITLE,
   DEFENSE_CATEGORIES,
   NODE_TYPES,
   PROVENANCES,
@@ -153,7 +154,7 @@ app.get('/api/projects/:pid/summary', async (req, res) => {
     db.listNodes(p.id, { includeSuggested: true }),
     db.listRuns(p.id),
   ]);
-  const issues = sortIssues(ruleChecks(g, feedback, p.stage));
+  const issues = sortIssues(ruleChecks(g, feedback, p.stage, p.track));
   const counts: Record<string, number> = {};
   for (const n of g.nodes) counts[n.type] = (counts[n.type] ?? 0) + 1;
   res.json({
@@ -173,10 +174,24 @@ app.get('/api/projects/:pid/summary', async (req, res) => {
 app.get('/api/projects/:pid/graph', async (req, res) => {
   const p = await projectOf(req);
   const includeSuggested = req.query.suggested !== '0';
-  const [nodes, edges, g] = await Promise.all([db.listNodes(p.id, { includeSuggested }), db.listEdges(p.id, { includeSuggested }), graphOf(p.id)]);
+  const [nodes, edges, g, latest, questions, feedback] = await Promise.all([
+    db.listNodes(p.id, { includeSuggested }),
+    db.listEdges(p.id, { includeSuggested }),
+    graphOf(p.id),
+    db.latestRun(p.id),
+    db.listQuestions(p.id),
+    db.listFeedback(p.id),
+  ]);
   const claimStatus: Record<number, boolean> = {};
   for (const c of g.ofType('claim')) claimStatus[c.id] = g.claimBacking(c.id).backed;
-  res.json({ nodes, edges, claimStatus });
+  // Progress signals for the guided journey (client decides which step is next).
+  const meta = {
+    last_check: latest ? { at: latest.created_at, score: latest.metrics.score, critical: latest.metrics.critical } : null,
+    defense_answered: questions.filter((q) => q.evaluation).length,
+    defense_total: questions.length,
+    feedback_open: feedback.filter((f) => f.status === 'open' || f.status === 'in_progress').length,
+  };
+  res.json({ nodes, edges, claimStatus, meta });
 });
 
 app.post('/api/projects/:pid/nodes', async (req, res) => {
@@ -300,7 +315,9 @@ app.post('/api/projects/:pid/idea/analyze', async (req, res) => {
   if (!p.idea.trim()) throw new HttpError(400, 'Describe your idea first');
   const previous: OpportunityBrief | null = req.body?.brief ?? p.brief;
   const brief = await ai.analyzeIdea(p, previous);
-  res.json(await db.updateProject(p.id, { brief }));
+  // A project created without a title takes the suggested one; a title the student chose is never replaced.
+  const title = p.title === DEFAULT_PROJECT_TITLE && brief.suggested_title ? brief.suggested_title : undefined;
+  res.json(await db.updateProject(p.id, { brief, ...(title ? { title } : {}) }));
 });
 
 app.post('/api/projects/:pid/blueprint/suggest', async (req, res) => {
@@ -309,7 +326,7 @@ app.post('/api/projects/:pid/blueprint/suggest', async (req, res) => {
   const s = await ai.suggestBlueprint(p, g);
   const created = new Map<string, { id: number; type: NodeType }>();
   for (const n of s.nodes) {
-    const node = await db.createNode({ project_id: p.id, type: n.type, title: n.title, content: n.content, provenance: n.provenance, status: 'suggested', data: { suggested_by: 'blueprint' } });
+    const node = await db.createNode({ project_id: p.id, type: n.type, title: n.title, content: n.content, provenance: n.provenance, status: 'suggested', data: { ...(n.data ?? {}), suggested_by: 'blueprint' } });
     created.set(n.key, { id: node.id, type: node.type });
   }
   const resolve = (k: string) => created.get(k) ?? g.byId.get(Number(k));
@@ -322,6 +339,58 @@ app.post('/api/projects/:pid/blueprint/suggest', async (req, res) => {
     edges++;
   }
   res.json({ nodes: created.size, edges });
+});
+
+// ---------------- Hardware track helpers ----------------
+
+/** Draft a verification test for every requirement that has none (as suggestions). */
+app.post('/api/projects/:pid/hardware/tests/suggest', async (req, res) => {
+  const p = await projectOf(req);
+  const g = await graphOf(p.id);
+  if (!g.ofType('requirement').length) throw new HttpError(400, 'Add requirements first — tests are written to prove them.');
+  const tests = await ai.suggestTests(p, g);
+  for (const t of tests) {
+    const node = await db.createNode({
+      project_id: p.id,
+      type: 'test',
+      title: t.title,
+      content: t.procedure,
+      provenance: 'ai_suggestion',
+      status: 'suggested',
+      data: { expected: t.expected, equipment: t.equipment, measured: '', status: 'planned', suggested_by: 'tests' },
+    });
+    await db.createEdge({ project_id: p.id, from_id: t.requirement_id, to_id: node.id, relation: 'verified_by', status: 'suggested' });
+  }
+  res.json({ created: tests.length });
+});
+
+/** Propose a block diagram, calculations and a first component list (as suggestions). */
+app.post('/api/projects/:pid/hardware/design/suggest', async (req, res) => {
+  const p = await projectOf(req);
+  const g = await graphOf(p.id);
+  if (!g.ofType('requirement').length) throw new HttpError(400, 'Add requirements first — the design is chosen to meet them.');
+  const s = await ai.suggestDesign(p, g);
+  const byKey = new Map<string, number>();
+  for (const d of s.designs) {
+    const node = await db.createNode({ project_id: p.id, type: 'design', title: d.title, content: d.content, provenance: 'ai_suggestion', status: 'suggested', data: { kind: d.kind, suggested_by: 'design' } });
+    if (d.key) byKey.set(d.key, node.id);
+    for (const rid of d.requirement_ids) await db.createEdge({ project_id: p.id, from_id: rid, to_id: node.id, relation: 'realized_by', status: 'suggested' });
+  }
+  for (const c of s.components) {
+    const node = await db.createNode({
+      project_id: p.id,
+      type: 'component',
+      title: c.title,
+      content: c.rationale,
+      provenance: 'ai_suggestion',
+      status: 'suggested',
+      data: { part: c.part, qty: c.qty, unit_cost: c.unit_cost, price_estimated: true, suggested_by: 'design' },
+    });
+    const dId = c.design_key ? byKey.get(c.design_key) : undefined;
+    if (dId) await db.createEdge({ project_id: p.id, from_id: dId, to_id: node.id, relation: 'uses', status: 'suggested' });
+    for (const rid of c.requirement_ids) await db.createEdge({ project_id: p.id, from_id: rid, to_id: node.id, relation: 'realized_by', status: 'suggested' });
+  }
+  res.json({ designs: s.designs.length, components: s.components.length });
 });
 
 // ---------------- Research workspace ----------------
@@ -421,7 +490,7 @@ app.post('/api/projects/:pid/check', async (req, res) => {
   const p = await projectOf(req);
   const [g, feedback, questions] = await Promise.all([graphOf(p.id), db.listFeedback(p.id), db.listQuestions(p.id)]);
   const includeAi = !!req.body?.include_ai && llmAvailable();
-  let issues = ruleChecks(g, feedback, p.stage);
+  let issues = ruleChecks(g, feedback, p.stage, p.track);
   let ai_error: string | null = null;
   if (includeAi) {
     try {
@@ -491,7 +560,7 @@ app.post('/api/projects/:pid/defense/generate', async (req, res) => {
   const p = await projectOf(req);
   const g = await graphOf(p.id);
   if (!g.nodes.length) throw new HttpError(400, 'Build your blueprint first — questions are generated from your project graph.');
-  const weak = ((await db.latestRun(p.id))?.issues ?? ruleChecks(g, await db.listFeedback(p.id), p.stage))
+  const weak = ((await db.latestRun(p.id))?.issues ?? ruleChecks(g, await db.listFeedback(p.id), p.stage, p.track))
     .filter((i) => i.severity === 'critical' || i.severity === 'warning')
     .slice(0, 12)
     .map((i) => i.title);

@@ -37,6 +37,12 @@ export interface GraphData {
   nodes: PNode[];
   edges: PEdge[];
   claimStatus: Record<number, boolean>;
+  meta: {
+    last_check: { at: string; score: number; critical: number } | null;
+    defense_answered: number;
+    defense_total: number;
+    feedback_open: number;
+  };
 }
 
 export interface Summary {
@@ -119,6 +125,8 @@ export const api = {
 
   analyzeIdea: (pid: number, body: { idea?: string; brief?: unknown }) => req<Project>('POST', `/projects/${pid}/idea/analyze`, body),
   suggestBlueprint: (pid: number) => req<{ nodes: number; edges: number }>('POST', `/projects/${pid}/blueprint/suggest`),
+  suggestTests: (pid: number) => req<{ created: number }>('POST', `/projects/${pid}/hardware/tests/suggest`),
+  suggestDesign: (pid: number) => req<{ designs: number; components: number }>('POST', `/projects/${pid}/hardware/design/suggest`),
 
   addSource: (pid: number, form: FormData) => req<{ node: PNode; extraction_error: string | null }>('POST', `/projects/${pid}/sources`, form),
   extract: (nodeId: number) => req<PNode>('POST', `/nodes/${nodeId}/extract`),
